@@ -5,10 +5,19 @@
 #	F.S.Enterprise
 #
 #	History
-#		Rev 1.0:2023-08-19
+#		Rev 1.0:2023.08.19
+#		Rev	1.1:2023.08.25
 #
 #	Refferece URL
 #		https://qiita.com/OkitaSystemDesign/items/ae9268f5d0ac77115032
+#
+#	Fucntions
+#		Initialize()
+#		Idle()
+#		IsButtonPressed(btnum)
+#		SetButtonCallback(func)
+#		SetAxisCallback(func)
+#		SetHatCallback(func)
 #
 from pygame.locals import *
 import pygame
@@ -26,8 +35,8 @@ bDebug				= False
 
 ########################################
 #
-#		LT(5)							RT(7)
-#		LB(4)							RB(6)
+#		LT(6)							RT(7)
+#		LB(4)							RB(5)
 #
 #		UP			BACK(8)	START(9)	Y(1)
 #	LEFT	RIGHT					X(0)	B(2)
@@ -50,8 +59,8 @@ BT_Y				= 1
 BT_B				= 2
 BT_A				= 3
 BT_LB				= 4
-BT_LT				= 5
-BT_RB				= 6
+BT_RB				= 5
+BT_LT				= 6
 BT_RT				= 7
 BT_BACK				= 8
 BT_START			= 9
@@ -68,8 +77,6 @@ HAT_UP_RIGHT		= 6
 HAT_DOWN_LEFT		= 7
 HAT_DOWN_RIGHT		= 8
 
-REPEAT_TIME			= 0.1
-
 ########################################
 #
 class GamePad():
@@ -85,22 +92,39 @@ class GamePad():
 	#
 	def InitializeParameters(self):
 		#
-		self.AxisState		= []
-		self.HatState		= []
-		self.ButtonState	= []
+		self.AxisState          = []
+		self.HatState           = []
+		self.ButtonState        = []
 
-		self.buttons		= 0
-		self.axes			= 0
-		self.hats			= 0
-		self.joynum			= 0
+		self.buttons            = 0
+		self.axes               = 0
+		self.hats               = 0
+		self.joynum             = 0
 
-		self.ButtonCallback	= self.DummyButton
-		self.AxisCallback	= self.DummyAxis
-		self.HatCallback	= self.DummyHat
+		self.buttonMap          = []
 
-		self.bt_repeat		= 0
-		self.hat_repeat		= 0
-		self.bat_res		= HAT_NONE
+		self.ButtonCallback     = self.DummyButton
+		self.AxisCallback       = self.DummyAxis
+		self.HatCallback        = self.DummyHat
+
+		self.bt_repeat_time     = 0
+		self.hat_repeat_time    = 0
+		self.axis_repeat_enable = False
+		self.axis_repeat_time   = 0
+		self.hat_res            = HAT_NONE
+
+		self.axis_repeat_state  = 0
+		self.bt_repeat_state    = 0
+		self.hat_repeat_state   = 0
+		self.repeat_1st         = 0.5
+		self.repeat_2nd         = 0.1
+		self.minAxisDead        = -0.05
+		self.maxAxisDead        = 0.05
+
+	####################################
+	#
+	def AxisRepeatEnable(self, enable):
+		self.axis_repeat_enable = enable
 
 	####################################
 	#
@@ -198,6 +222,11 @@ class GamePad():
 			print(" Number of Hats    : " + str(self.hats))
 			print('')
 
+			############################
+			#
+			for i in range(self.buttons):
+				self.buttonMap.append(False)
+
 		#
 		except pygame.error:
 			return False, 'No Joystick.'
@@ -276,10 +305,44 @@ class GamePad():
 		#
 		for i in range(self.axes):
 			pos = self.joy.get_axis(i)
-			if self.AxisState[i] != pos:
-				self.AxisState[i] = pos
-				self.AxisCallback(i, pos)
-#				print(i, pos)
+
+			############################
+			#
+			if self.axis_repeat_enable == True:
+
+				if pos < self.minAxisDead or pos > self.maxAxisDead:
+					if self.axis_repeat_state == 0:
+						self.axis_repeat_state = 1
+						self.axis_repeat_time = time.time()
+						self.AxisState[i] = pos
+						self.AxisCallback(i, pos)
+#						print('Repeat : ', self.axis_repeat_state, ' Axis : ', i, pos)
+
+					elif self.axis_repeat_state == 1:
+						if time.time() > self.axis_repeat_time + self.repeat_1st:
+							self.axis_repeat_time = time.time()
+							self.axis_repeat_state = 2
+							self.AxisState[i] = pos
+							self.AxisCallback(i, pos)
+#							print('Repeat : ', self.axis_repeat_state, ' Axis : ', i, pos)
+
+					elif self.axis_repeat_state == 2:
+						if time.time() > self.axis_repeat_time + self.repeat_2nd:
+							self.axis_repeat_time = time.time()
+							self.AxisState[i] = pos
+							self.AxisCallback(i, pos)
+#							print('Repeat : ', self.axis_repeat_state, ' Axis : ', i, pos)
+
+				else:
+					self.axis_repeat_state = 0
+
+			############################
+			#
+			else:
+				if self.AxisState[i] != pos:
+					self.AxisState[i] = pos
+					self.AxisCallback(i, pos)
+#					print('Axis : ', i, pos)
 
 	####################################
 	# Update Button Input
@@ -289,24 +352,38 @@ class GamePad():
 		#
 		for i in range(self.buttons):
 
-			#
+			# æŠ¼ä¸‹ãƒžãƒƒãƒ—ã®ä½œæˆ
 			state = self.joy.get_button(i)
+			if state == 1:
+				self.buttonMap[i] = True
+			else:
+				self.buttonMap[i] = False
 
-			# •Ï‰»‚ª‚ ‚Á‚½‚ç
+			# å¤‰åŒ–ãŒã‚ã£ãŸã‚‰
 			if state != self.ButtonState[i]:
 				self.ButtonState[i] = state
 				self.ButtonCallback(i, state)
-				print(i, state)
+#				print(i, state)
 
-				# ‰Ÿ‰º
+				# æŠ¼ä¸‹
 				if state == 1:
-					self.bt_repeat = time.time()
+					self.bt_repeat_state = 1
+					self.bt_repeat_time = time.time()
 
-			# ‰Ÿ‚µ‚Á‚Ï‚È‚µ
+			# æŠ¼ã—ã£ã±ãªã—
 			elif state == 1:
-				if time.time() > self.bt_repeat + REPEAT_TIME:
-					self.bt_repeat = time.time()
-					print(str(i), ' Continue to push.')
+				if self.bt_repeat_state == 1:
+					if time.time() > self.bt_repeat_time + self.repeat_1st:
+						self.bt_repeat_time = time.time()
+						self.bt_repeat_state = 2
+						self.ButtonCallback(i, state)
+
+				elif self.bt_repeat_state == 2:
+					if time.time() > self.bt_repeat_time + self.repeat_2nd:
+						self.bt_repeat_time = time.time()
+						self.ButtonCallback(i, state)
+
+#					print(str(i), ' Continue to push.')
 
 	####################################
 	# Update HAT input
@@ -318,8 +395,9 @@ class GamePad():
 
 			#
 			state = self.joy.get_hat(i)
+#			print('STAT : ', state)
 
-			# •Ï‰»‚ª‚ ‚Á‚½
+			# å¤‰åŒ–ãŒã‚ã£ãŸ
 			if (self.HatState[i] != state):
 				self.HatState[i] = state
 				if state == (0, 0):		self.hat_res = HAT_NONE
@@ -332,20 +410,32 @@ class GamePad():
 				elif state == (-1, -1):	self.hat_res = HAT_DOWN_LEFT
 				elif state == (1, -1):	self.hat_res = HAT_DOWN_RIGHT
 				self.HatCallback(i, self.hat_res)
-				print(i, self.hat_res)
+#				print(i, self.hat_res)
 
-				# ‰Ÿ‰º
+				# æŠ¼ä¸‹
 				if state != (0, 0):
-					self.hat_repeat = time.time()
+					self.hat_repeat_state = 1
+					self.hat_repeat_time = time.time()
 
-			# ‰Ÿ‚µ‚Á‚Ï‚È‚µ
+#					print('num : ', i, 'state : ', state, ' hat state : ', self.HatState[i], ' res : ', self.hat_res, ' rep state : ', self.hat_repeat_state)
+
+			# æŠ¼ã—ã£ã±ãªã—
 			elif state != (0, 0):
-				if time.time() > self.hat_repeat + REPEAT_TIME:
-					self.hat_repeat = time.time()
-					self.HatCallback(i, self.hat_res)
-					print(i, self.hat_res)
 
-				pass
+				if self.hat_repeat_state == 1:
+					if time.time() > self.hat_repeat_time + self.repeat_1st:
+						self.hat_repeat_time = time.time()
+						self.hat_repeat_state = 2
+						self.HatCallback(i, self.hat_res)
+
+				elif self.hat_repeat_state == 2:
+					if time.time() > self.hat_repeat_time + self.repeat_2nd:
+						self.hat_repeat_time = time.time()
+						self.HatCallback(i, self.hat_res)
+			else:
+				self.hat_repeat_state = 0
+
+#				print('num : ', i, 'state : ', state, ' hat state : ', self.HatState[i], ' res : ', self.hat_res, ' rep state : ', self.hat_repeat_state)
 
 	####################################
 	#
@@ -354,3 +444,8 @@ class GamePad():
 		self.UpdateAxis()
 		self.UpdateButton()
 		self.UpdateHat()
+
+	####################################
+	#
+	def IsButtonPressed(self, btnum):
+		return self.buttonMap[btnum]

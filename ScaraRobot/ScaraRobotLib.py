@@ -1,11 +1,28 @@
 ################################################################################
-# https://docs.python.org/ja/3/library/ctypes.html
+# Scara Robot Control
+#
+#	F.S.Enterprise
+#
+#	History
+#		Rev 1.0:2023.08.19
+#		Rev	1.1:2023.08.25
+#
+#	https://docs.python.org/ja/3/library/ctypes.html
 #
 import ctypes
 import time
 
 VID = 0x10C4	# ロボットのVender ID
 PID	= 0xEA80	# ロボットのProduct ID
+
+POS_X    = 0
+POS_Y    = 1
+POS_Z    = 2
+POS_YAW  = 3
+POS_GRIP = 4
+
+DIR_CW  = 0
+DIR_CCW = 1
 
 ########################################
 #
@@ -17,28 +34,45 @@ dllSetDebugMode = dll.SetDebugMode
 dllSetDebugMode.argtype = ctypes.c_bool
 dllSetDebugMode.restype = None
 ########################################
-
-########################################
 #
 dllGetEnumDevices = dll.GetEnumDevices
 dllGetEnumDevices.argtype = None
-dllGetEnumDevices.restype = ctypes.c_bool
+dllGetEnumDevices.restype = ctypes.c_int
 ########################################
 #
-dllDeviceOpen = dll.DeviceOpen
-dllDeviceOpen.argtypes = [ctypes.c_int]
-dllDeviceOpen.restype = ctypes.c_void_p
+dllScaraOpen = dll.ScaraOpen
+dllScaraOpen.argtypes = [ctypes.c_int]
+dllScaraOpen.restype = ctypes.c_void_p
 ########################################
 #
-dllDeviceClose = dll.DeviceClose
-dllDeviceClose.argtypes = [ctypes.c_void_p]
-dllDeviceClose.restype = ctypes.c_bool
-
+dllScaraClose = dll.ScaraClose
+dllScaraClose.argtypes = [ctypes.c_void_p]
+dllScaraClose.restype = ctypes.c_bool
 ########################################
 #
-dllScaraInitialize = dll.ScaraInitialize
-dllScaraInitialize.argtypes = [ctypes.c_void_p]
-dllScaraInitialize.restype = ctypes.c_bool
+dllInitialize = dll.Initialize
+dllInitialize.argtypes = [ctypes.c_void_p]
+dllInitialize.restype = ctypes.c_bool
+########################################
+#
+dllSetDir = dll.SetDir
+dllSetDir.argtypes = [ctypes.c_int]
+dllSetDir.restype = ctypes.c_bool
+########################################
+#
+dllFixYaw = dll.FixYaw
+dllFixYaw.argtype = ctypes.c_bool
+dllFixYaw.restype = ctypes.c_bool
+########################################
+#
+dllSetPos = dll.SetPos
+dllSetPos.argtypes = [ctypes.c_int, ctypes.c_double]
+dllSetPos.restype = ctypes.c_bool
+########################################
+#
+dllGetPos = dll.GetPos
+dllGetPos.argtypes = [ctypes.c_int]
+dllGetPos.restype = ctypes.c_double
 ########################################
 #
 dllMotorTorque = dll.MotorTorque
@@ -46,49 +80,9 @@ dllMotorTorque.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c
 dllMotorTorque.restype = ctypes.c_bool
 ########################################
 #
-dllMoveXY = dll.MoveXY
-dllMoveXY.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_double, ctypes.c_int]
-dllMoveXY.restype = ctypes.c_bool
-########################################
-#
-dllMoveZ = dll.MoveZ
-dllMoveZ.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_int]
-dllMoveZ.restype = ctypes.c_bool
-########################################
-#
-dllMoveXYZ = dll.MoveXYZ
-dllMoveXYZ.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_int]
-dllMoveXYZ.restype = ctypes.c_bool
-########################################
-#
-dllMoveXYZYaw = dll.MoveXYZYaw
-dllMoveXYZYaw.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_int]
-dllMoveXYZYaw.restype = ctypes.c_bool
-########################################
-#
-dllMoveXYZYawOC = dll.MoveXYZYawOC
-dllMoveXYZYawOC.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_int]
-dllMoveXYZYawOC.restype = ctypes.c_bool
-########################################
-#
-dllMoveYawOC = dll.MoveYawOC
-dllMoveYawOC.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_double, ctypes.c_int]
-dllMoveYawOC.restype = ctypes.c_bool
-########################################
-#
-dllMoveYaw = dll.MoveYaw
-dllMoveYaw.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_int]
-dllMoveYaw.restype = ctypes.c_bool
-########################################
-#
-dllMoveOC = dll.MoveOC
-dllMoveOC.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_int]
-dllMoveOC.restype = ctypes.c_bool
-########################################
-#
-dllGetPos = dll.GetPos
-dllGetPos.argtypes = [ctypes.c_void_p, ctypes.c_int]
-dllGetPos.restype = ctypes.c_double
+dllMove = dll.Move
+dllMove.argtypes = [ctypes.c_void_p, ctypes.c_int]
+dllMove.restype = ctypes.c_bool
 
 ########################################
 #
@@ -106,25 +100,49 @@ class ScaraRobot():
 	def InitializeParameters(self):
 		self.numDevice = 0
 		self.hDevice   = None
-#		self.msMove    = 2000
 
 	####################################
 	#
 	def Initialize(self):
-#		numDevice = dll.GetEnumDevices();
-		numDevice = dllGetEnumDevices(None);
+		numDevice = self.GetEnumDevices();
 		print(numDevice, ' device(s) found.')
 
 		if (numDevice > 0):
-			self.hDevice = dllDeviceOpen(0);
+			self.hDevice = self.ScaraOpen(0);
 			print('device', hex(self.hDevice))
 
-#			dllSetDebugMode(True)
-			dllScaraInitialize(self.hDevice)
+#			self.SetDebugMode(True)
+			self.FixYaw(True)
+			dllInitialize(self.hDevice)
 			return True, ''
 
 		else:
 			return False, 'No Scara Robot.'
+
+	####################################
+	#
+	def SetDir(self, type):
+		return dllSetDir(type)
+
+	####################################
+	#
+	def FixYaw(self, fix):
+		return dllFixYaw(fix)
+
+	####################################
+	#
+	def SetDebugMode(self, debug):
+		return dllSetDebugMode(debug)
+
+	########################################
+	#
+	def GetEnumDevices(self):
+		return dllGetEnumDevices()
+
+	########################################
+	#
+	def ScaraOpen(self, deviceNum):
+		return dllScaraOpen(deviceNum)
 
 	####################################
 	#
@@ -133,25 +151,16 @@ class ScaraRobot():
 
 	####################################
 	#
-	def MoveXY(self, x, y, ms):
-		return dllMoveXY(self.hDevice, x, y, ms)
+	def GetPos(self, type):
+		return dllGetPos(type)
 
 	####################################
 	#
-	def MoveZ(self, z, ms):
-		return dllMoveZ(self.hDevice, z, ms)
+	def SetPos(self, type, pos):
+		return dllSetPos(type, pos)
 
 	####################################
 	#
-	def MoveYaw(self, yaw, ms):
-		return dllMoveYaw(self.hDevice, yaw, ms)
+	def Move(self, ms):
+		return dllMove(self.hDevice, ms)
 
-	####################################
-	#
-	def MoveOC(self, oc, ms):
-		return dllMoveOC(self.hDevice, oc, ms)
-
-	####################################
-	#
-	def GetPos(self, motor):
-		return dllGetPos(self.hDevice, motor)

@@ -134,13 +134,22 @@ class ScaraRobotConntrol():
 		self.scara.SetPos(ScaraRobotLib.POS_GRIP, self.grip)
 		self.scara.SetDir(ScaraRobotLib.DIR_CW)
 
-		self.pad.AxisRepeatEnable(True)
+		self.pad.AxisRepeatEnable(False)
+		self.SetAxisAbs(True)
+
+#		self.pad.AxisRepeatEnable(True)
+#		self.SetAxisAbs(False)
 
 		################################
 		#
 		self.teaching = Teaching()
 
 		return ret
+
+	####################################
+	#
+	def SetAxisAbs(self, abs):
+		self.absAxis = abs
 
 	####################################
 	#
@@ -284,7 +293,7 @@ class ScaraRobotConntrol():
 		#
 		elif axis == GamePadLib.ANA_LEFT_VERT:
 			if self.absAxis == True:
-				tempY = pos * -100
+				tempY = pos * 100
 
 			else:
 				tempY = self.y;

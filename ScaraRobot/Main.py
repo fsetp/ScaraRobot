@@ -134,11 +134,11 @@ class ScaraRobotConntrol():
 		self.scara.SetPos(ScaraRobotLib.POS_GRIP, self.grip)
 		self.scara.SetDir(ScaraRobotLib.DIR_CW)
 
-		self.pad.AxisRepeatEnable(False)
-		self.SetAxisAbs(True)
+#		self.pad.AxisRepeatEnable(False)
+#		self.SetAxisAbs(True)
 
-#		self.pad.AxisRepeatEnable(True)
-#		self.SetAxisAbs(False)
+		self.pad.AxisRepeatEnable(True)
+		self.SetAxisAbs(False)
 
 		################################
 		#
